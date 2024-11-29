@@ -16,23 +16,21 @@ target_col = [
     ]
 
 
-
-    
-
 def create_oncoplot(sorted_df, 
                     color_map=None, 
                     mutation_counts=None, 
                     figsize=(18, 16),
                     wspace=0.5, 
                     hspace=0.01, 
-                    freq_columns=None, 
+                    freq_columns=["all_freq"], 
                     ax_main_range=(0, 24), 
                     ax_freq_range=(24, 28), 
                     ax_legend_range=(29, 31),
                     square=False,
-                    show_frame=False):
+                    show_frame=False,
+                    bar_annot_fontsize=7):
     
-    freq_columns = freq_columns or [f"{sample_type}_freq" for sample_type in ["A", "T", "S"]] + ['all_freq']
+    # freq_columns = freq_columns or [f"{sample_type}_freq" for sample_type in ["A", "T", "S"]] + ['all_freq']
     heatmap_data = sorted_df.drop(columns=freq_columns)
     freq_data = sorted_df[freq_columns].values
     
@@ -59,8 +57,8 @@ def create_oncoplot(sorted_df,
     gs = plt.GridSpec(2, 32, height_ratios=[1, 12], wspace=wspace, hspace=hspace)
     
     if mutation_counts is not None:
-        ax_bar = fig.add_subplot(gs[0, 0:24])     # Bar chart
-        plot_bar(ax_bar, mutation_counts)
+        ax_bar = fig.add_subplot(gs[0, ax_main_range[0]:ax_main_range[1]])     # Bar chart
+        plot_bar(ax_bar, mutation_counts, fontsize=bar_annot_fontsize)
     else:
         ax_bar = None  # 如果沒有 bar chart, 不繪製上方區域
     
@@ -68,7 +66,7 @@ def create_oncoplot(sorted_df,
     ax_freq = fig.add_subplot(gs[1, ax_freq_range[0]:ax_freq_range[1]])   # Frequency heatmap
     ax_legend = fig.add_subplot(gs[1, ax_legend_range[0]:ax_legend_range[1]]) # Legend
 
-    plot_heatmap(ax_main, heatmap_data, color_map, square=square)
+    plot_heatmap(ax_main, heatmap_data, color_map, square=square, show_frame=show_frame)
     plot_freq(ax_freq, freq_data, freq_columns, square=square)
     plot_legend(ax_legend, color_map)
 
@@ -79,19 +77,22 @@ def create_oncoplot(sorted_df,
         #plt.tight_layout()
 
     
-def plot_bar(ax_bar, mutation_counts):    
+def plot_bar(ax_bar, mutation_counts, fontsize=6):    
 
-    # 繪製柱狀圖
     x = np.arange(len(mutation_counts))
     width = 0.95
-    ax_bar.bar(x, mutation_counts, width, color='gray', edgecolor='white')
 
-    # 设置柱状图的范围以匹配热图
+    # Create bars
+    tmbs = np.where(mutation_counts == 0, 0, mutation_counts/40)
+    ax_bar.bar(x, tmbs, width=width, color='gray', edgecolor='white')
+    
+    # Set x-axis limits to exactly match the heatmap
+    # The -0.5 ensures the bars align perfectly with heatmap cells
     ax_bar.set_xlim(-0.5, len(mutation_counts) - 0.5)
     
     # 在柱子上添加數值標籤
-    for i, count in enumerate(mutation_counts):
-        ax_bar.text(i, count + 1, f"{count}", ha='center', fontsize=8)
+    for i, tmb in enumerate(tmbs):
+        ax_bar.text(i, tmb + 2, f"{tmb:.1f}", ha='center', fontsize=fontsize)
 
     # 隐藏柱状图的边框和刻度
     ax_bar.spines['top'].set_visible(False)
@@ -99,7 +100,7 @@ def plot_bar(ax_bar, mutation_counts):
     ax_bar.spines['left'].set_visible(True)
     ax_bar.spines['bottom'].set_visible(False)
     ax_bar.set_xticks([])
-    #ax_bar.set_xlabel('Mutation Count')
+    ax_bar.set_xlabel('TMB')
 
 
 def plot_heatmap(ax_main, heatmap_data, color_map, linecolor="white", square=True, show_frame=False):
@@ -141,7 +142,7 @@ def plot_heatmap(ax_main, heatmap_data, color_map, linecolor="white", square=Tru
                             linewidth=1, edgecolor='lightgray', facecolor='none')
             ax_main.add_patch(rect)
 
-def plot_freq(ax_freq, freq_data, freq_columns, square=True):
+def plot_freq(ax_freq, freq_data, freq_columns, square=True, show_frame=True):
     # 繪製頻率熱圖
     sns.heatmap(freq_data,
                 cmap='Blues',
